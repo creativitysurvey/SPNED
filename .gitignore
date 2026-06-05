@@ -1,0 +1,23 @@
+# 忽略编译输出目录
+build/
+
+# 忽略所有生成的二进制产物和中间对象
+*.o
+*.so
+*.wasm
+*.bin
+*.out
+
+# 忽略下载的庞大 SDK 和依赖压缩包
+wasi-sdk-*/
+wasmtime-*/
+*.tar.gz
+*.tar.xz
+
+# 忽略子模块或第三方源码目录（我们通过脚本或 CMake 拉取）
+ubpf/
+
+# 忽略操作系统或编辑器的缓存
+.DS_Store
+.vscode/
+.idea/
