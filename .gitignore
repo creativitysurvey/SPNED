@@ -21,3 +21,9 @@ ubpf/
 .DS_Store
 .vscode/
 .idea/
+
+# 忽略 Experiment 2 编译生成的可执行文件
+measure_cfg
+measure_semantic_table2
+measure_table2
+spned_verifier
