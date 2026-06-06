@@ -424,8 +424,6 @@ Because the execution environment shares the physical address space, the resulti
 
 \section{Experiments}
 
-\section{Experimental Evaluation}
-
 \subsection{Experimental Settings}
 
 All experiments were conducted on a high-performance, dual-socket NUMA server equipped with two 40-core processors (yielding 80 physical cores and 160 hardware threads). To ensure absolute micro-architectural measurement fidelity and prevent frequency scaling artifacts, the CPU cores were locked to their base clock frequency. The system features a deep memory hierarchy and $1\text{ TB}$ of DDR4 ECC registered memory, providing a theoretical peak random-access bandwidth of approximately $\SI{59}{GB/s}$ per socket. This capacity guarantees that all target datasets fit entirely within memory, strictly isolating raw CPU micro-architectural performance and physical DRAM bandwidth from disk I/O latency. The host operating system is Ubuntu 22.04 LTS running a customized Linux kernel. Furthermore, to eliminate OS-level thread migration noise during multi-core stress tests, we enforced strict hardware thread affinity (CPU pinning) and NUMA-aware concurrent first-touch memory allocation across all multithreaded workloads \cite{leis2014morsel}.
