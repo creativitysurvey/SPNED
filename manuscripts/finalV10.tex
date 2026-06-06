@@ -228,25 +228,25 @@ The architecture is conceptually divided into two distinct phases: the verificat
 
 \subsection{Framework Components: The Decoder DSL and IR Builder}
 
-To achieve a priori static verification without relying on fallback runtime bounds checks, the decoder logic must be inherently constrainable. General-purpose languages and unrestricted bytecode representations (such as arbitrary WebAssembly) inevitably encounter the halting problem and state-space explosion, making strict, zero-overhead memory safety verification intractable \cite{watt2018mechanising}. Traditional bounded verifiers, such as the Linux eBPF verifier, attempt to navigate this space but frequently fail to definitively prove safety across complex, stateful decompression loops. Consequently, they are forced to silently inject fallback runtime bounds checks, drastically degrading data ingestion performance \cite{hedam2023delilah, borkmann2023bpf}. 
+To achieve \textit{a priori} static verification without relying on fallback runtime bounds checks, the decoder logic must be inherently constrainable. General-purpose languages and unrestricted bytecode representations (such as arbitrary WebAssembly) inevitably encounter the halting problem and state-space explosion, making strict, zero-overhead memory safety verification intractable \cite{watt2018mechanising}. Traditional bounded verifiers, such as the Linux eBPF verifier, attempt to navigate this space but frequently fail to definitively prove safety across complex, stateful decompression loops. Consequently, they are forced to silently inject fallback runtime bounds checks, drastically degrading data ingestion performance by stalling superscalar pipelines and introducing branch prediction penalties \cite{hedam2023delilah, borkmann2023bpf}. 
 
-The SPNED architecture resolves this limitation by introducing a highly constrained, Domain-Specific Language (DSL) strictly tailored for data deserialization, coupled with an Intermediate Representation (IR) builder that preserves high-level loop invariants. 
+The SPNED architecture resolves this limitation by introducing a highly constrained, Domain-Specific Language (DSL) strictly tailored for data deserialization, coupled with an Intermediate Representation (IR) builder that preserves high-level loop invariants necessary for micro-architectural optimization.
 
 \subsubsection{Formalization of the Decoder DSL}
 
-We formally define the syntax of the SPNED Decoder DSL, denoted as $\mathcal{L}_{DSL}$, to be Turing-incomplete by design. The language strictly prohibits unbounded backward jumps (e.g., arbitrary `while` loops or `goto` statements) and general-purpose pointer arithmetic. Instead, $\mathcal{L}_{DSL}$ relies on statically bounded iteration and explicit buffer indexing. 
+We formally define the syntax of the SPNED Decoder DSL, denoted as $\mathcal{L}_{DSL}$, to be Turing-incomplete by design. The language strictly prohibits unbounded backward jumps (e.g., arbitrary \texttt{while} loops or \texttt{goto} statements) and general-purpose pointer arithmetic. Instead, $\mathcal{L}_{DSL}$ relies on statically bounded iteration and explicit buffer indexing. 
 
 Let the core semantics of $\mathcal{L}_{DSL}$ be defined by the following recursive grammar:
-$$
+\begin{equation}
 \begin{aligned}
 \text{Stmt} & \Coloneqq \text{Var} \leftarrow \text{Expr} \mid \mathcal{B}[\text{Expr}_{idx}] \leftarrow \text{Expr} \mid \mathbf{for}\; i \in [\text{Expr}_{start}, \text{Expr}_{end}) \;\mathbf{do}\; \text{Stmt} \mid \text{Stmt}_1 ; \text{Stmt}_2 \\
 \text{Expr} & \Coloneqq c \mid \text{Var} \mid \mathcal{B}[\text{Expr}_{idx}] \mid \text{Expr}_1 \oplus \text{Expr}_2
 \end{aligned}
-$$
+\end{equation}
 
-Where $c$ represents scalar constants, $\text{Var}$ represents strongly typed local variables, $\mathcal{B} \in \{\mathcal{B}_{in}, \mathcal{B}_{out}, \mathcal{B}_{dict}\}$ represents the pre-allocated, host-provided memory buffers (input, output, and dictionary, respectively), and $\oplus$ represents standard logical and arithmetic operations. 
+Where $c$ represents scalar constants, $\text{Var}$ represents strongly typed local variables, $\mathcal{B} \in \{\mathcal{B}_{in}, \mathcal{B}_{out}, \mathcal{B}_{dict}\}$ represents the pre-allocated, host-provided physical memory buffers (input, output, and dictionary, respectively), and $\oplus$ represents standard logical and arithmetic operations. 
 
-By constraining iteration to the $\mathbf{for}$ construct, where $\text{Expr}_{start}$ and $\text{Expr}_{end}$ are evaluated prior to loop entry, $\mathcal{L}_{DSL}$ guarantees $\mathcal{O}(N)$ termination. Furthermore, all memory interactions are localized exclusively to the $\mathcal{B}[\text{Expr}_{idx}]$ construct, preventing arbitrary memory probes outside the host-defined data boundaries.
+By constraining iteration to the $\mathbf{for}$ construct, where $\text{Expr}_{start}$ and $\text{Expr}_{end}$ are evaluated prior to loop entry, $\mathcal{L}_{DSL}$ guarantees $\mathcal{O}(N)$ termination. Furthermore, all memory interactions are localized exclusively to the $\mathcal{B}[\text{Expr}_{idx}]$ construct, preventing arbitrary memory probes outside the host-defined data boundaries and ensuring strict memory isolation without hardware trap overhead.
 
 \subsubsection{The SPNED IR Builder}
 
@@ -256,7 +256,7 @@ To counteract this, the SPNED IR Builder directly translates the Abstract Syntax
 
 \begin{itemize}
     \item $V$ is the set of basic blocks consisting of linear sequences of ALU operations.
-    \item $E \subseteq V \times V$ represents the control-flow edges. To maintain verifiability, the subgraph induced by the body of any loop must be a Directed Acyclic Graph (DAG), ensuring that the only back-edges in $G_{IR}$ belong strictly to the bounded $\mathbf{for}$ iterators.
+    \item $E \subseteq V \times V$ represents the control-flow edges. To maintain verifiability and prevent verification state-space explosion, the subgraph induced by the body of any loop must be a Directed Acyclic Graph (DAG), ensuring that the only back-edges in $G_{IR}$ belong strictly to the bounded $\mathbf{for}$ iterators.
     \item $\mathcal{M}$ represents the subset of instructions that interface with memory. The IR builder translates all DSL buffer accesses into a uniform tuple: $m(idx, \mathcal{B}_{target}) \in \mathcal{M}$.
     \item $\Phi$ represents the set of $\phi$-functions used to merge state variables across control-flow joins, essential for tracking the evolution of index variables over multiple loop iterations.
 \end{itemize}
@@ -282,19 +282,11 @@ To counteract this, the SPNED IR Builder directly translates the Abstract Syntax
 \draw[arrow] (cfg) -- node[above] {Verification} (verifier);
 
 \end{tikzpicture}
-\caption{The architectural pipeline of the SPNED Framework components. The strictly constrained $\mathcal{L}_{DSL}$ is parsed and lowered into a specialized $G_{IR}$ that explicitly preserves loop invariants and memory boundaries, perfectly framing the logic for interval-based verification.}
+\caption{The architectural pipeline of the SPNED Framework components. The strictly constrained $\mathcal{L}_{DSL}$ is parsed and lowered into a specialized $G_{IR}$ that explicitly preserves loop invariants and memory boundaries, perfectly framing the logic for sub-millisecond interval-based verification.}
 \label{fig:spned_components}
 \end{figure}
 
-By preserving the bounds $\text{Expr}_{start}$ and $\text{Expr}_{end}$ directly within the control-flow headers of $G_{IR}$, the IR Builder provides the exact mathematical framing required for the subsequent abstract interpretation engine. This structural guarantee completely bypasses the semantic degradation typical of traditional bytecode compilation, enabling SPNED to succeed where conventional bounded verifiers fail.
-
-
-
-
-
-
-
-
+By preserving the bounds $\text{Expr}_{start}$ and $\text{Expr}_{end}$ directly within the control-flow headers of $G_{IR}$, the IR Builder provides the exact mathematical framing required for the subsequent abstract interpretation engine. This structural guarantee completely bypasses the semantic degradation typical of traditional bytecode compilation, enabling SPNED to succeed where conventional bounded verifiers fail, seamlessly maintaining the required sub-millisecond planning latency.
 
 \subsection{Learning Mechanism: Abstract State Inference for Static Verification}
 
