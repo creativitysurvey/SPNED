@@ -6,27 +6,22 @@
 #include <wasm.h>
 #include <wasmtime.h>
 
-// ---------------------------------------------------------
-// 1. 真正的裸机 JIT 引擎 (替代原来的 #pragma 循环)
-// ---------------------------------------------------------
 class RealJitEngine {
     uint8_t* code;
 public:
     RealJitEngine() {
         code = (uint8_t*)mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        // x86-64 机器码: void decode(int* arr (rdi), int count (rsi))
-        // 逻辑: for(i=0; i<count; i++) arr[i] = (arr[i]+10)*2;
         uint8_t bytes[] = {
             0x48, 0x31, 0xC9,                   // xor rcx, rcx          ; i = 0
-            // .loop: (offset 3)
+            // .loop:
             0x48, 0x39, 0xF1,                   // cmp rcx, rsi          ; i < count?
-            0x7D, 0x12,                         // jge .done             ; if i >= count, exit
+            0x7D, 0x10,                         // jge .done             ; [修复处!] 严格向前跳16个字节 (0x10)
             0x8B, 0x04, 0x8F,                   // mov eax, [rdi+rcx*4]  ; load arr[i]
             0x83, 0xC0, 0x0A,                   // add eax, 10           ; + 10
             0xD1, 0xE0,                         // shl eax, 1            ; * 2
             0x89, 0x04, 0x8F,                   // mov [rdi+rcx*4], eax  ; store arr[i]
             0x48, 0xFF, 0xC1,                   // inc rcx               ; i++
-            0xEB, 0xEB,                         // jmp .loop             ; jump back (offset -21)
+            0xEB, 0xEB,                         // jmp .loop             ; jump back 
             // .done:
             0xC3                                // ret
         };
@@ -34,30 +29,26 @@ public:
         mprotect(code, 4096, PROT_READ | PROT_EXEC);
     }
     ~RealJitEngine() { munmap(code, 4096); }
-    typedef void (*DecodeFunc)(int*, int);
+    // [修复处!] 强制使用 size_t 保证 64 位 rsi 寄存器高位无垃圾数据
+    typedef void (*DecodeFunc)(int*, size_t);
     DecodeFunc get_func() { return (DecodeFunc)code; }
 };
 
-// ---------------------------------------------------------
-// 2. 原生 C++ 基准 (对比用)
-// ---------------------------------------------------------
-__attribute__((noinline)) void decode_native(int* arr, int count) {
-    for (int i = 0; i < count; i++) arr[i] = (arr[i] + 10) * 2;
+__attribute__((noinline)) void decode_native(int* arr, size_t count) {
+    for (size_t i = 0; i < count; i++) arr[i] = (arr[i] + 10) * 2;
 }
 
 int main() {
     std::cout << "=== Exp 1: TRUE Physical Throughput Benchmark ===\n";
-    const int TUPLE_COUNT = 10000000; // 1000万条数据
+    const size_t TUPLE_COUNT = 10000000;
     std::vector<int> data(TUPLE_COUNT, 5);
 
-    // --- 测速 1: Native C++ ---
     auto t1 = std::chrono::high_resolution_clock::now();
     decode_native(data.data(), TUPLE_COUNT);
     asm volatile("" : : "r"(data[0]) : "memory");
     auto t2 = std::chrono::high_resolution_clock::now();
     double native_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
 
-    // --- 测速 2: True Bare-Metal JIT ---
     std::fill(data.begin(), data.end(), 5);
     RealJitEngine jit;
     auto spned_func = jit.get_func();
@@ -68,16 +59,14 @@ int main() {
     auto t4 = std::chrono::high_resolution_clock::now();
     double jit_ms = std::chrono::duration<double, std::milli>(t4 - t3).count();
 
-    // --- 测速 3: True Wasmtime Sandbox ---
     std::fill(data.begin(), data.end(), 5);
     wasm_engine_t* engine = wasm_engine_new();
     wasmtime_store_t* store = wasmtime_store_new(engine, nullptr, nullptr);
     wasmtime_context_t* context = wasmtime_store_context(store);
     
-    // 真实的 Wasm 内存处理循环 (WAT)
     const char* wat = 
         "(module"
-        "  (memory (export \"mem\") 1000)" // 分配足够的 Wasm 内存页
+        "  (memory (export \"mem\") 1000)" 
         "  (func (export \"decode\") (param $len i32)"
         "    (local $i i32) (local $ptr i32)"
         "    (loop $my_loop"
@@ -103,15 +92,12 @@ int main() {
     uint8_t* wasm_memory = wasmtime_memory_data(context, &mem_extern.of.memory);
     
     auto t5 = std::chrono::high_resolution_clock::now();
-    // Wasm 开销 1: 将宿主数据拷贝进 Wasm 线性内存边界
     std::memcpy(wasm_memory, data.data(), TUPLE_COUNT * 4);
     
-    // Wasm 开销 2: 真实 FFI 调用执行解码
     wasmtime_val_t args[1], results[1];
     args[0].kind = WASMTIME_I32; args[0].of.i32 = TUPLE_COUNT;
     wasmtime_func_call(context, wasm_func, args, 1, results, 0, nullptr);
     
-    // Wasm 开销 3: 将数据拷贝回宿主
     std::memcpy(data.data(), wasm_memory, TUPLE_COUNT * 4);
     auto t6 = std::chrono::high_resolution_clock::now();
     double wasm_ms = std::chrono::duration<double, std::milli>(t6 - t5).count();

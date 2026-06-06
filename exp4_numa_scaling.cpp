@@ -11,32 +11,30 @@ public:
     RealJitEngine() {
         code = (uint8_t*)mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         uint8_t bytes[] = {
-            0x48, 0x31, 0xC9, 0x48, 0x39, 0xF1, 0x7D, 0x12, 0x8B, 0x04, 0x8F, 
+            0x48, 0x31, 0xC9, 0x48, 0x39, 0xF1, 0x7D, 0x10, 0x8B, 0x04, 0x8F, 
             0x83, 0xC0, 0x0A, 0xD1, 0xE0, 0x89, 0x04, 0x8F, 0x48, 0xFF, 0xC1, 0xEB, 0xEB, 0xC3
         };
         std::memcpy(code, bytes, sizeof(bytes));
         mprotect(code, 4096, PROT_READ | PROT_EXEC);
     }
     ~RealJitEngine() { munmap(code, 4096); }
-    typedef void (*DecodeFunc)(int*, int);
+    typedef void (*DecodeFunc)(int*, size_t);
     DecodeFunc get_func() { return (DecodeFunc)code; }
 };
 
-void worker_thread(int id, int* chunk, int size, void* jit_ptr) {
-    // 真实的 NUMA 绑核机制
+void worker_thread(int id, int* chunk, size_t size, void* jit_ptr) {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(id % std::thread::hardware_concurrency(), &cpuset);
     pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-    // 真正的裸机 JIT 调用，无任何 C++ 模拟！
     auto func = (RealJitEngine::DecodeFunc)jit_ptr;
     func(chunk, size);
 }
 
 int main() {
     std::cout << "=== Exp 4: TRUE NUMA-Aware Scalability (Bare-Metal JIT) ===\n";
-    const int TUPLE_COUNT = 50000000;
+    const size_t TUPLE_COUNT = 50000000;
     std::vector<int> data(TUPLE_COUNT, 5);
     RealJitEngine jit;
     
@@ -46,7 +44,7 @@ int main() {
 
     for (int num_threads : thread_counts) {
         std::fill(data.begin(), data.end(), 5);
-        int chunk_size = TUPLE_COUNT / num_threads;
+        size_t chunk_size = TUPLE_COUNT / num_threads;
         std::vector<std::thread> threads;
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -58,7 +56,7 @@ int main() {
 
         double ms = std::chrono::duration<double, std::milli>(end - start).count();
         double mts = (TUPLE_COUNT / ms / 1000.0);
-        double gbs = (TUPLE_COUNT * 4.0) / (ms * 1e6); // 读写带宽估算
+        double gbs = (TUPLE_COUNT * 4.0) / (ms * 1e6); 
 
         std::cout << num_threads << "\t| " << mts << " MT/s \t| " << gbs << " GB/s\n";
     }
