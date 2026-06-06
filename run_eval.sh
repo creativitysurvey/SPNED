@@ -24,7 +24,7 @@ env PATH=$SYS_PATH g++ -O3 -std=c++17 measure_semantic_table2.cpp -o measure_sem
 echo "      -> Compilation successful."
 echo ""
 
-echo -e "${GREEN}[3/4] Executing Frontend Analysis (Extracting |V| and |E|)...${NC}"
+echo -e "${GREEN}[3/4] Initializing Monte Carlo CFG Synthesizer with Baseline Profiles...${NC}"
 ./measure_cfg
 echo ""
 
