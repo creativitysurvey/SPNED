@@ -324,6 +324,104 @@ The formal verification workflow is detailed in Algorithm 1.
 
 This analytical engine is designed for seamless integration into modern query optimizers \cite{anneser2023autosteer}. By restricting the decoder CFG to non-recursive, reducible structures, SPNED bounds the mathematical verification complexity strictly to $\mathcal{O}(|V| + |E|)$. This structural guarantee enables deterministic, sub-millisecond planning latencies (e.g., $< \SI{1}{ms}$) even for massively multi-staged decompression cascades \cite{kuschewski2023btrblocks}. By shifting the security burden entirely to compile-time formal verification, SPNED empowers the host database to elide all runtime bounds checks. This allows the decoded payload to saturate the host's physical random-access DRAM bandwidth limits ($\approx \SI{59}{GB/s}$) \cite{leis2014morsel}, completely immune to the micro-architectural stalls and sandbox-induced latency spikes of traditional dynamic isolation paradigms \cite{gienieczko2025anyblox, watt2018mechanising}.
 
+
+
+
+\subsection{Algorithm: Unrestricted JIT Compilation and Zero-Copy Integration}
+
+Once the abstract interpretation engine formally proves that the decoder's Intermediate Representation (IR) strictly adheres to memory safety and termination bounds, the execution paradigm transitions from verification to native integration. The core innovation of the SPNED architecture lies in translating this $a~priori$ mathematical proof into unrestricted, zero-cost hardware execution, bypassing the runtime penalties inherent to dynamic sandbox boundaries \cite{gienieczko2025anyblox, watt2018mechanising}.
+
+Let $D_{IR}$ be the statically verified decoder logic. In conventional dynamic isolation models, the Just-In-Time (JIT) compilation mapping function $\Phi_{sandbox}$ for any memory access operation $m(idx, \mathcal{B})$ necessitates the injection of a conditional hardware or software trap to ensure sandbox integrity:
+\begin{equation}
+    \Phi_{sandbox}(m(idx, \mathcal{B})) = 
+    \begin{cases} 
+        \text{trap}() & \text{if } idx \ge |\mathcal{B}| \\ 
+        \text{mem}[\mathcal{B}_{base} + idx \times \text{sizeof}(T)] & \text{otherwise} 
+    \end{cases}
+\end{equation}
+This injected branch severely disrupts basic block contiguity, thwarting modern compiler optimization passes such as loop unrolling and SIMD auto-vectorization \cite{lattner2004llvm}. 
+
+Conversely, SPNED leverages the guarantee that $\forall m \in D_{IR}, idx < |\mathcal{B}|$ is an inviolable axiom. Consequently, the SPNED JIT compiler applies an unrestricted lowering function, $\Phi_{SPNED}$:
+\begin{equation}
+    \Phi_{SPNED}(m(idx, \mathcal{B})) = \text{mem}[\mathcal{B}_{base} + idx \times \text{sizeof}(T)]
+\end{equation}
+By systematically eliding all boundary conditions, the resulting machine code $M_{native}$ achieves semantic equivalence and execution parity with manually written, unsafe C++ integration plugins.
+
+To minimize data transfer overhead and achieve absolute zero-copy integration, the generated $M_{native}$ payload is loaded directly into the host database's virtual address space. SPNED integrates seamlessly with standard morsel-driven execution engines \cite{leis2014morsel, neumann2020umbra} by adopting a register-passed pointer ABI (Application Binary Interface). The host engine allocates a fixed-size memory morsel $\mathcal{B}_{out}$ and directly maps the compressed input buffer $\mathcal{B}_{in}$. The physical memory addresses of these buffers, along with their scalar length boundaries (utilized purely for iteration control, not safety checking), are passed directly via CPU registers to $M_{native}$. 
+
+The complete procedure for compiling, integrating, and executing the statically proven decoder is formalized in Algorithm~\ref{alg:spned_jit}.
+
+\begin{algorithm}[H]
+\caption{SPNED Native Compilation and Zero-Copy Execution}
+\label{alg:spned_jit}
+\begin{algorithmic}[1]
+\Require Verified IR $D_{IR}$, Compressed Data Chunk $\mathcal{C}$, Morsel Size $S$
+\Ensure Decoded Tuple Batch $\mathcal{B}_{out}$
+\State \textbf{Phase 1: Unrestricted Compilation}
+\State $M_{native} \gets \emptyset$
+\For{\textbf{each} basic block $b \in D_{IR}$}
+    \State $b_{opt} \gets \text{VectorizeAndUnroll}(b)$ \Comment{Exploiting branchless blocks}
+    \For{\textbf{each} instruction $i \in b_{opt}$}
+        \If{$i$ is memory access $m(idx, \mathcal{B})$}
+            \State $M_{native} \gets M_{native} \cup \{ \text{EmitUnrestrictedAccess}(idx, \mathcal{B}) \}$
+        \Else
+            \State $M_{native} \gets M_{native} \cup \{ \text{LowerToMachineCode}(i) \}$
+        \EndIf
+    \EndFor
+\EndFor
+\State $F_{ptr} \gets \text{LoadExecutableMemory}(M_{native})$ \Comment{Load into host address space}
+\State
+\State \textbf{Phase 2: Zero-Copy Morsel Execution}
+\State $\mathcal{B}_{in} \gets \text{MemoryMap}(\mathcal{C})$
+\State $\mathcal{B}_{out} \gets \text{AllocateMorsel}(S)$ \Comment{Pre-allocate output vector}
+\State
+\State \Comment{Invoke native function via standard C ABI (register-passed pointers)}
+\State $\text{RecordsDecoded} \gets F_{ptr}(\&\mathcal{B}_{in}, \&\mathcal{B}_{out}, \text{Length}(\mathcal{B}_{in}), S)$
+\State
+\State \Return $\mathcal{B}_{out}[0 \dots \text{RecordsDecoded} - 1]$
+\end{algorithmic}
+\end{algorithm}
+
+Because the execution environment shares the physical address space, the resulting tuple vectors ($\mathcal{B}_{out}$) require no inter-process communication (IPC) serialization, deserialization, or intermediary memory mapping transitions. The host database's analytical operators can immediately consume the deserialized arrays. Figure~\ref{fig:spned_memory_architecture} illustrates the physical memory topology and register-passing execution model utilized by SPNED.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=1cm and 1.5cm,
+    memblock/.style={draw, rectangle, minimum width=3.5cm, minimum height=1.2cm, align=center, fill=blue!10, rounded corners},
+    codeblock/.style={draw, rectangle, minimum width=4cm, minimum height=1.5cm, align=center, fill=red!10, rounded corners},
+    hostblock/.style={draw, rectangle, minimum width=10cm, minimum height=6cm, align=center, fill=gray!5, dashed, rounded corners},
+    arrow/.style={-{Stealth}, thick, shorten >= 2pt, shorten <= 2pt}
+]
+
+% Background Host Process Box
+\node[hostblock] (host) {};
+\node[anchor=north west, font=\bfseries] at (host.north west) {Host Database Process Address Space};
+
+% Components
+\node[codeblock, anchor=center, yshift=1cm] (jit) at (host.center) {SPNED $M_{native}$\\(No Bounds Checks)};
+
+\node[memblock, below left=1.5cm and -0.5cm of jit] (bin) {Input Buffer $\mathcal{B}_{in}$\\(Compressed Data)};
+\node[memblock, below right=1.5cm and -0.5cm of jit] (bout) {Output Morsel $\mathcal{B}_{out}$\\(Decoded Tuples)};
+
+\node[draw, rectangle, fill=green!10, minimum width=2.5cm, minimum height=0.8cm, align=center, above=1cm of jit] (engine) {Vectorized\\Query Engine};
+
+% Pointers and execution
+\draw[arrow] (engine) -- node[right, font=\footnotesize] {Call $F_{ptr}(\&\mathcal{B}_{in}, \&\mathcal{B}_{out})$} (jit);
+\draw[arrow, bend right=20] (jit.south west) to node[left, font=\footnotesize] {Direct Read} (bin.north);
+\draw[arrow, bend left=20] (jit.south east) to node[right, font=\footnotesize] {Zero-Copy Write} (bout.north);
+
+\draw[arrow, dashed] (bout.east) to[out=0, in=0] node[right, font=\footnotesize] {Immediate Pipeline Consumption} (engine.east);
+
+\end{tikzpicture}
+\caption{Memory integration architecture of SPNED. By utilizing a register-passed pointer ABI within the shared host address space, SPNED achieves immediate zero-copy data transfer devoid of sandbox mediation.}
+\label{fig:spned_memory_architecture}
+\end{figure}
+
+
+
+
+
 \section{Experiments}
 
 \subsection{Experimental Settings}
