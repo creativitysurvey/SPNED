@@ -27,3 +27,7 @@ measure_cfg
 measure_semantic_table2
 measure_table2
 spned_verifier
+
+# 忽略 Experiment 3 & 4 编译生成的可执行文件
+measure_batch_overhead
+measure_scalability
