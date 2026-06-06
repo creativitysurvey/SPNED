@@ -9,3 +9,4 @@ measure_exp1_kernel_real
 *.out
 decoder.wasm
 bpf_decoder.o
+wasmtime-c-api/
