@@ -1,33 +1,9 @@
-# 忽略编译输出目录
-build/
-
-# 忽略所有生成的二进制产物和中间对象
+# Ignore compiled executables and binaries
+*_bin
+exp3_dynamic_probe
+spned_real_ast_parser
+exp4_bin
+spned_unified_engine
+measure_exp1_kernel_real
 *.o
-*.so
-*.wasm
-*.bin
 *.out
-
-# 忽略下载的庞大 SDK 和依赖压缩包
-wasi-sdk-*/
-wasmtime-*/
-*.tar.gz
-*.tar.xz
-
-# 忽略子模块或第三方源码目录（我们通过脚本或 CMake 拉取）
-ubpf/
-
-# 忽略操作系统或编辑器的缓存
-.DS_Store
-.vscode/
-.idea/
-
-# 忽略 Experiment 2 编译生成的可执行文件
-measure_cfg
-measure_semantic_table2
-measure_table2
-spned_verifier
-
-# 忽略 Experiment 3 & 4 编译生成的可执行文件
-measure_batch_overhead
-measure_scalability
