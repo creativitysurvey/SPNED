@@ -134,7 +134,8 @@ int decode_ebpf(int* out, const int* runs, const int* vals, const int* dict, int
 // ============================================================================
 // 测评主函数
 // ============================================================================
-void run_benchmark(std::string name, auto func, bool selective) {
+template <typename Func>
+void run_benchmark(std::string name, Func func, bool selective) {
     auto start = std::chrono::high_resolution_clock::now();
     int res = func();
     auto end = std::chrono::high_resolution_clock::now();
