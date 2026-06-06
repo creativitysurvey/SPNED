@@ -1,73 +1,15 @@
 #!/bin/bash
-
-# ==============================================================================
-# SPNED Artifact Evaluation Master Execution Script (Full Suite)
-# ==============================================================================
-
-# 定义颜色输出以增强控制台可读性
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo -e "${CYAN}========================================================${NC}"
-echo -e "${CYAN} Initiating SPNED Full Artifact Evaluation Suite...     ${NC}"
-echo -e "${CYAN}========================================================${NC}"
-
-# 【全局环境免疫】剥离 Conda linker 干扰，确保全局调用纯净系统 C++ 工具链
 export PATH=$(echo $PATH | tr ':' '\n' | grep -v -i "conda" | grep -v "spned_env" | paste -sd ':' -)
-unset LD_LIBRARY_PATH
-unset LIBRARY_PATH
+unset LD_LIBRARY_PATH; unset LIBRARY_PATH
 
-echo -e "[+] Global environment sanitized (Conda bypassed)."
-echo ""
+echo "========================================================"
+echo " SPNED Final AE Verification Suite (True Hardware Level)"
+echo "========================================================"
 
-# ---------------------------------------------------------
-# 执行 Experiment 1: End-to-End Macro Benchmark (端到端宏观吞吐量)
-# ---------------------------------------------------------
-if [ -f "./run_exp1.sh" ]; then
-    echo -e "${YELLOW}>>> [1/4] Running Experiment 1 (End-to-End Macro Benchmark)...${NC}"
-    bash ./run_exp1.sh
-    echo ""
-else
-    echo -e "[-] Warning: run_exp1.sh not found. Skipping Experiment 1."
-    echo -e "    (Note: Exp 1 may require the full DB engine and ClickBench dataset)."
-    echo ""
-fi
+echo -e "\n>>> 1. Compiling & Executing True Dynamic Pipeline Probe (Exp 3)..."
+g++ -O3 -march=native exp3_dynamic_probe.cpp -o exp3_dynamic_probe
+./exp3_dynamic_probe
 
-# ---------------------------------------------------------
-# 执行 Experiment 3: Context Switch Latency (微观上下文切换延迟)
-# ---------------------------------------------------------
-if [ -f "./run_exp3.sh" ]; then
-    echo -e "${YELLOW}>>> [2/4] Running Experiment 3 (Context Switch Latency)...${NC}"
-    bash ./run_exp3.sh
-    echo ""
-else
-    echo -e "[-] Warning: run_exp3.sh not found. Skipping."
-fi
-
-# ---------------------------------------------------------
-# 执行 Experiment 4: NUMA Scalability (多核内存墙物理带宽)
-# ---------------------------------------------------------
-if [ -f "./run_exp4.sh" ]; then
-    echo -e "${YELLOW}>>> [3/4] Running Experiment 4 (NUMA / DRAM Saturation)...${NC}"
-    bash ./run_exp4.sh
-    echo ""
-else
-    echo -e "[-] Warning: run_exp4.sh not found. Skipping."
-fi
-
-# ---------------------------------------------------------
-# 执行 Experiment 2: Transparent Verifier & Naked JIT (真正的形式化验证器)
-# ---------------------------------------------------------
-if [ -f "./run_transparent_eval.sh" ]; then
-    echo -e "${YELLOW}>>> [4/4] Running Experiment 2 (Transparent Verifier & mmap JIT)...${NC}"
-    bash ./run_transparent_eval.sh
-    echo ""
-else
-    echo -e "[-] Warning: run_transparent_eval.sh not found. Skipping."
-fi
-
-echo -e "${GREEN}========================================================${NC}"
-echo -e "${GREEN} ALL EXPERIMENTS COMPLETED SUCCESSFULLY!                ${NC}"
-echo -e "${GREEN}========================================================${NC}"
+echo -e "\n>>> 2. Compiling & Executing Unified CFG Worklist & JIT Engine (Exp 2)..."
+g++ -O3 -std=c++17 spned_unified_engine.cpp -o spned_unified_engine
+./spned_unified_engine
