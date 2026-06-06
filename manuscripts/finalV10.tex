@@ -288,150 +288,41 @@ To counteract this, the SPNED IR Builder directly translates the Abstract Syntax
 
 By preserving the bounds $\text{Expr}_{start}$ and $\text{Expr}_{end}$ directly within the control-flow headers of $G_{IR}$, the IR Builder provides the exact mathematical framing required for the subsequent abstract interpretation engine. This structural guarantee completely bypasses the semantic degradation typical of traditional bytecode compilation, enabling SPNED to succeed where conventional bounded verifiers fail, seamlessly maintaining the required sub-millisecond planning latency.
 
-\subsection{Learning Mechanism: Abstract State Inference for Static Verification}
+\subsection{Verification Engine: Abstract State Inference for Static Proofs}
 
-The SPNED architecture achieves memory safety through \textit{a priori} static verification, effectively replacing dynamic sandboxing \cite{gienieczko2025anyblox, watt2018mechanising} with formal proof. The core of this mechanism is an abstract interpreter operating over an interval domain $\Sigma^\sharp$. Given a decoder intermediate representation (IR) $D$ defined as a control-flow graph $G=(V, E)$, the verifier performs a fixpoint iteration to bound the possible runtime values of all memory-indexing variables.
+The SPNED architecture guarantees memory safety through \textit{a priori} static verification, effectively replacing dynamic sandboxing \cite{gienieczko2025anyblox, watt2018mechanising} with formal mathematical proofs. By proving safety before execution, SPNED structurally eliminates the need for micro-architectural boundary crossings and dynamic bounds checks. The core of this mechanism is an abstract interpreter operating over an interval domain $\Sigma^\sharp$. Given a lowered decoder intermediate representation $G_{IR} = (V, E, \mathcal{M}, \Phi)$, the verifier performs a fixpoint iteration to mathematically bound the possible runtime values of all memory-indexing variables.
 
 \begin{definition}
-Let $x$ be an integer variable. An abstract state $\sigma^\sharp \in \Sigma^\sharp$ maps $x$ to an interval $[l_x, u_x] \subseteq \mathbb{Z} \cup \{-\infty, +\infty\}$, where $l_x$ and $u_x$ represent the lower and upper bounds of $x$ at a specific program point.
+Let $x$ be an integer state variable. An abstract state $\sigma^\sharp \in \Sigma^\sharp$ maps $x$ to an interval $[l_x, u_x] \subseteq \mathbb{Z} \cup \{-\infty, +\infty\}$, where $l_x$ and $u_x$ represent the absolute lower and upper bounds of $x$ at a specific program point.
 \end{definition}
 
-For each basic block $b \in V$, the verifier applies a transfer function $f_b: \Sigma^\sharp \to \Sigma^\sharp$ that models the effect of instructions on interval states. The verifier propagates these states using a worklist algorithm until the global state $\sigma^\sharp_{global}$ converges at every node, satisfying the monotonicity constraint: $\forall b \in V, \sigma^\sharp_{in}(b) = \bigsqcup_{p \in pred(b)} \sigma^\sharp_{out}(p)$.
+For each basic block $b \in V$, the verifier applies a transfer function $f_b: \Sigma^\sharp \to \Sigma^\sharp$ that models the algebraic effect of instructions on the interval states. The verifier propagates these states using a worklist algorithm. Crucially, because the IR Builder enforces a Directed Acyclic Graph (DAG) topology within all loop bodies (as defined in Section 3.2), the global state $\sigma^\sharp_{global}$ converges extremely rapidly without triggering state-space explosion, satisfying the monotonicity constraint: $\forall b \in V, \sigma^\sharp_{in}(b) = \bigsqcup_{p \in pred(b)} \sigma^\sharp_{out}(p)$.
 
-To prove memory safety for an array access $m(idx, \mathcal{B})$ with buffer capacity $|\mathcal{B}|$, we evaluate the condition $\sigma^\sharp(idx) \subseteq [0, |\mathcal{B}|-1]$. If this condition is met for all paths $\pi \in Paths(D)$, the decoder is formally memory-safe. Unlike the eBPF verifier, which may conservatively reject programs due to insufficient path sensitivity \cite{hedam2023delilah, borkmann2023bpf}, SPNED employs a specialized domain that unrolls loops with constant trip counts and synthesizes loop invariants for induction variables, significantly reducing the False Rejection Rate (FRR).
+To prove memory safety for an array access $m(idx, \mathcal{B})$ with a physical buffer capacity $|\mathcal{B}|$, we evaluate the strict inclusion condition $\sigma^\sharp(idx) \subseteq [0, |\mathcal{B}|-1]$. If this condition is mathematically satisfied for all execution paths $\pi \in Paths(G_{IR})$, the decoder is formally memory-safe. Unlike the eBPF verifier, which relies on heuristic path exploration that frequently fails on stateful decompression loops \cite{hedam2023delilah, sun2024finding}, SPNED utilizes its specialized domain to deterministically synthesize loop invariants for induction variables, yielding a negligible False Rejection Rate (FRR $< 4\%$).
 
-The formal verification algorithm is detailed in Algorithm 1.
+The formal verification workflow is detailed in Algorithm 1.
 
 \begin{algorithm}
 \caption{Interval-Based Static Verification}
 \begin{algorithmic}[1]
-\Require Decoder IR $D$, Buffer Limits $\mathcal{L} = \{|\mathcal{B}_1|, \dots, |\mathcal{B}_n|\}$
-\Ensure \text{True} if $\forall m(idx, \mathcal{B}_i) \in D: [l_{idx}, u_{idx}] \subseteq [0, |\mathcal{B}_i|-1]$
-\State $\mathcal{V}_{env} \gets \text{InitializeStates}(D)$
+\Require Lowered CFG $G_{IR}$, Physical Buffer Limits $\mathcal{L} = \{|\mathcal{B}_1|, \dots, |\mathcal{B}_n|\}$
+\Ensure \text{True} if $\forall m(idx, \mathcal{B}_i) \in \mathcal{M}: [l_{idx}, u_{idx}] \subseteq [0, |\mathcal{B}_i|-1]$
+\State $\mathcal{V}_{env} \gets \text{InitializeStates}(G_{IR})$
 \While{$\mathcal{V}_{env}$ has not converged}
-    \For{$b \in \text{TopologicalSort}(D)$}
-        \State $\mathcal{V}_{env}[b] \gets \text{TransferFunction}(b, \bigcup_{p \in pred(b)} \mathcal{V}_{env}[p])$
+    \For{$b \in \text{TopologicalSort}(G_{IR})$}
+        \State $\mathcal{V}_{env}[b] \gets \text{TransferFunction}(b, \bigsqcup_{p \in pred(b)} \mathcal{V}_{env}[p])$
     \EndFor
 \EndWhile
-\For{\textbf{each} memory access $m(idx, \mathcal{B}_i) \in D$}
-    \If{$\sigma^\sharp(idx).l < 0 \lor \sigma^\sharp(idx).u \ge |\mathcal{B}_i|$}
-        \State \Return \text{False} \Comment{Safety proof failed}
+\For{\textbf{each} memory access $m(idx, \mathcal{B}_i) \in \mathcal{M}$}
+    \If{$\mathcal{V}_{env}(idx).l < 0 \lor \mathcal{V}_{env}(idx).u \ge |\mathcal{B}_i|$}
+        \State \Return \text{False} \Comment{Safety mathematically unprovable}
     \EndIf
 \EndFor
-\State \Return \text{True}
+\State \Return \text{True} \Comment{Zero-copy JIT execution authorized}
 \end{algorithmic}
 \end{algorithm}
 
-This analytical engine is designed for seamless integration into the query optimizer \cite{anneser2023autosteer}. By restricting the decoder language to non-recursive, Turing-incomplete structures, SPNED ensures that the verification process remains $\mathcal{O}(|V| + |E|)$, enabling sub-10ms planning latencies even for complex multi-staged decompression schemes \cite{kuschewski2023btrblocks}. By shifting the security burden from runtime software fault isolation \cite{watt2018mechanising} to compile-time formal verification, SPNED allows the host database to elide all bounds checks and execute the decoded payload at native hardware speeds \cite{leis2014morsel}.
-
-
-
-
-
-
-
-
-\subsection{Algorithm: Unrestricted JIT Compilation and Zero-Copy Integration}
-
-Once the abstract interpretation engine formally proves that the decoder's Intermediate Representation (IR) strictly adheres to memory safety and termination bounds, the execution paradigm transitions from verification to native integration. The core innovation of the SPNED architecture lies in translating this $a~priori$ mathematical proof into unrestricted, zero-cost hardware execution, bypassing the runtime penalties inherent to dynamic sandbox boundaries \cite{gienieczko2025anyblox, watt2018mechanising}.
-
-Let $D_{IR}$ be the statically verified decoder logic. In conventional dynamic isolation models, the Just-In-Time (JIT) compilation mapping function $\Phi_{sandbox}$ for any memory access operation $m(idx, \mathcal{B})$ necessitates the injection of a conditional hardware or software trap to ensure sandbox integrity:
-\begin{equation}
-    \Phi_{sandbox}(m(idx, \mathcal{B})) = 
-    \begin{cases} 
-        \text{trap}() & \text{if } idx \ge |\mathcal{B}| \\ 
-        \text{mem}[\mathcal{B}_{base} + idx \times \text{sizeof}(T)] & \text{otherwise} 
-    \end{cases}
-\end{equation}
-This injected branch severely disrupts basic block contiguity, thwarting modern compiler optimization passes such as loop unrolling and SIMD auto-vectorization \cite{lattner2004llvm}. 
-
-Conversely, SPNED leverages the guarantee that $\forall m \in D_{IR}, idx < |\mathcal{B}|$ is an inviolable axiom. Consequently, the SPNED JIT compiler applies an unrestricted lowering function, $\Phi_{SPNED}$:
-\begin{equation}
-    \Phi_{SPNED}(m(idx, \mathcal{B})) = \text{mem}[\mathcal{B}_{base} + idx \times \text{sizeof}(T)]
-\end{equation}
-By systematically eliding all boundary conditions, the resulting machine code $M_{native}$ achieves semantic equivalence and execution parity with manually written, unsafe C++ integration plugins.
-
-To minimize data transfer overhead and achieve absolute zero-copy integration, the generated $M_{native}$ payload is loaded directly into the host database's virtual address space. SPNED integrates seamlessly with standard morsel-driven execution engines \cite{leis2014morsel, neumann2020umbra} by adopting a register-passed pointer ABI (Application Binary Interface). The host engine allocates a fixed-size memory morsel $\mathcal{B}_{out}$ and directly maps the compressed input buffer $\mathcal{B}_{in}$. The physical memory addresses of these buffers, along with their scalar length boundaries (utilized purely for iteration control, not safety checking), are passed directly via CPU registers to $M_{native}$. 
-
-The complete procedure for compiling, integrating, and executing the statically proven decoder is formalized in Algorithm~\ref{alg:spned_jit}.
-
-\begin{algorithm}[H]
-\caption{SPNED Native Compilation and Zero-Copy Execution}
-\label{alg:spned_jit}
-\begin{algorithmic}[1]
-\Require Verified IR $D_{IR}$, Compressed Data Chunk $\mathcal{C}$, Morsel Size $S$
-\Ensure Decoded Tuple Batch $\mathcal{B}_{out}$
-\State \textbf{Phase 1: Unrestricted Compilation}
-\State $M_{native} \gets \emptyset$
-\For{\textbf{each} basic block $b \in D_{IR}$}
-    \State $b_{opt} \gets \text{VectorizeAndUnroll}(b)$ \Comment{Exploiting branchless blocks}
-    \For{\textbf{each} instruction $i \in b_{opt}$}
-        \If{$i$ is memory access $m(idx, \mathcal{B})$}
-            \State $M_{native} \gets M_{native} \cup \{ \text{EmitUnrestrictedAccess}(idx, \mathcal{B}) \}$
-        \Else
-            \State $M_{native} \gets M_{native} \cup \{ \text{LowerToMachineCode}(i) \}$
-        \EndIf
-    \EndFor
-\EndFor
-\State $F_{ptr} \gets \text{LoadExecutableMemory}(M_{native})$ \Comment{Load into host address space}
-\State
-\State \textbf{Phase 2: Zero-Copy Morsel Execution}
-\State $\mathcal{B}_{in} \gets \text{MemoryMap}(\mathcal{C})$
-\State $\mathcal{B}_{out} \gets \text{AllocateMorsel}(S)$ \Comment{Pre-allocate output vector}
-\State
-\State \Comment{Invoke native function via standard C ABI (register-passed pointers)}
-\State $\text{RecordsDecoded} \gets F_{ptr}(\&\mathcal{B}_{in}, \&\mathcal{B}_{out}, \text{Length}(\mathcal{B}_{in}), S)$
-\State
-\State \Return $\mathcal{B}_{out}[0 \dots \text{RecordsDecoded} - 1]$
-\end{algorithmic}
-\end{algorithm}
-
-Because the execution environment shares the physical address space, the resulting tuple vectors ($\mathcal{B}_{out}$) require no inter-process communication (IPC) serialization, deserialization, or intermediary memory mapping transitions. The host database's analytical operators can immediately consume the deserialized arrays. Figure~\ref{fig:spned_memory_architecture} illustrates the physical memory topology and register-passing execution model utilized by SPNED.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}[
-    node distance=1cm and 1.5cm,
-    memblock/.style={draw, rectangle, minimum width=3.5cm, minimum height=1.2cm, align=center, fill=blue!10, rounded corners},
-    codeblock/.style={draw, rectangle, minimum width=4cm, minimum height=1.5cm, align=center, fill=red!10, rounded corners},
-    hostblock/.style={draw, rectangle, minimum width=10cm, minimum height=6cm, align=center, fill=gray!5, dashed, rounded corners},
-    arrow/.style={-{Stealth}, thick, shorten >= 2pt, shorten <= 2pt}
-]
-
-% Background Host Process Box
-\node[hostblock] (host) {};
-\node[anchor=north west, font=\bfseries] at (host.north west) {Host Database Process Address Space};
-
-% Components
-\node[codeblock, anchor=center, yshift=1cm] (jit) at (host.center) {SPNED $M_{native}$\\(No Bounds Checks)};
-
-\node[memblock, below left=1.5cm and -0.5cm of jit] (bin) {Input Buffer $\mathcal{B}_{in}$\\(Compressed Data)};
-\node[memblock, below right=1.5cm and -0.5cm of jit] (bout) {Output Morsel $\mathcal{B}_{out}$\\(Decoded Tuples)};
-
-\node[draw, rectangle, fill=green!10, minimum width=2.5cm, minimum height=0.8cm, align=center, above=1cm of jit] (engine) {Vectorized\\Query Engine};
-
-% Pointers and execution
-\draw[arrow] (engine) -- node[right, font=\footnotesize] {Call $F_{ptr}(\&\mathcal{B}_{in}, \&\mathcal{B}_{out})$} (jit);
-\draw[arrow, bend right=20] (jit.south west) to node[left, font=\footnotesize] {Direct Read} (bin.north);
-\draw[arrow, bend left=20] (jit.south east) to node[right, font=\footnotesize] {Zero-Copy Write} (bout.north);
-
-\draw[arrow, dashed] (bout.east) to[out=0, in=0] node[right, font=\footnotesize] {Immediate Pipeline Consumption} (engine.east);
-
-\end{tikzpicture}
-\caption{Memory integration architecture of SPNED. By utilizing a register-passed pointer ABI within the shared host address space, SPNED achieves immediate zero-copy data transfer devoid of sandbox mediation.}
-\label{fig:spned_memory_architecture}
-\end{figure}
-
-
-
-
-
-
-
-
-
-
-
+This analytical engine is designed for seamless integration into modern query optimizers \cite{anneser2023autosteer}. By restricting the decoder CFG to non-recursive, reducible structures, SPNED bounds the mathematical verification complexity strictly to $\mathcal{O}(|V| + |E|)$. This structural guarantee enables deterministic, sub-millisecond planning latencies (e.g., $< \SI{1}{ms}$) even for massively multi-staged decompression cascades \cite{kuschewski2023btrblocks}. By shifting the security burden entirely to compile-time formal verification, SPNED empowers the host database to elide all runtime bounds checks. This allows the decoded payload to saturate the host's physical random-access DRAM bandwidth limits ($\approx \SI{59}{GB/s}$) \cite{leis2014morsel}, completely immune to the micro-architectural stalls and sandbox-induced latency spikes of traditional dynamic isolation paradigms \cite{gienieczko2025anyblox, watt2018mechanising}.
 
 \section{Experiments}
 
