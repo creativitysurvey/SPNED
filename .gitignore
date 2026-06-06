@@ -7,3 +7,5 @@ spned_unified_engine
 measure_exp1_kernel_real
 *.o
 *.out
+decoder.wasm
+bpf_decoder.o
