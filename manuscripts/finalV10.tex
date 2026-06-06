@@ -424,29 +424,23 @@ Because the execution environment shares the physical address space, the resulti
 
 \section{Experiments}
 
+\section{Experimental Evaluation}
+
 \subsection{Experimental Settings}
 
-All experiments were conducted on a high-performance, dual-socket server equipped with two AMD EPYC 7742 64-core processors (yielding 128 physical cores and 256 hardware threads) operating at a base clock of 2.25 GHz. The system features a deep memory hierarchy, including 256 MB of L3 cache per socket and 1 TB of DDR4-3200 ECC registered memory, which guarantees that all target datasets fit entirely within memory to isolate raw CPU decompression performance from disk I/O latency. The host operating system is Ubuntu 22.04 LTS running a customized Linux kernel (version 6.5.0) to ensure full support for advanced memory mapping controls and the latest eBPF verifier features. To rigorously evaluate the decompression boundaries and execution overheads of our proposed architecture, we utilize two formal, industry-standard analytical workloads. First, we employ the ClickBench dataset \cite{clickhouse2022clickbench}, representing an un-normalized, wide-column schema derived from real-world web analytics traffic that heavily stresses dictionary and run-length decoding algorithms. Second, we utilize the TPC-H decision support benchmark at Scale Factor 100 (approximately 100 GB of raw data). For TPC-H, we focus specifically on sequential scans over the highly dense \texttt{lineitem} table to assess raw ingestion limits under complex, multi-staged bit-packing and dictionary decompression scenarios.
+All experiments were conducted on a high-performance, dual-socket NUMA server equipped with two 40-core processors (yielding 80 physical cores and 160 hardware threads). To ensure absolute micro-architectural measurement fidelity and prevent frequency scaling artifacts, the CPU cores were locked to their base clock frequency. The system features a deep memory hierarchy and $1\text{ TB}$ of DDR4 ECC registered memory, providing a theoretical peak random-access bandwidth of approximately $\SI{59}{GB/s}$ per socket. This capacity guarantees that all target datasets fit entirely within memory, strictly isolating raw CPU micro-architectural performance and physical DRAM bandwidth from disk I/O latency. The host operating system is Ubuntu 22.04 LTS running a customized Linux kernel. Furthermore, to eliminate OS-level thread migration noise during multi-core stress tests, we enforced strict hardware thread affinity (CPU pinning) and NUMA-aware concurrent first-touch memory allocation across all multithreaded workloads \cite{leis2014morsel}.
 
-Our experimental design manipulates three primary independent variables: the decoder execution architecture, the encoding scheme complexity, and the tuple batch size ($\mathcal{B}_{out}$ capacity). The focal variable is the execution architecture, which we evaluate across four tightly controlled baseline configurations to cleanly separate the costs of dynamic isolation, static verification, and raw execution: 
-(1) \textbf{SPNED (Proposed):} Our Static-Proof Native Execution of Decoders model, which transpiles a restricted Domain-Specific Language (DSL) into an intermediate representation, formally verifies memory safety via abstract interval interpretation, and subsequently JIT-compiles the payload into unrestricted native machine code. 
-(2) \textbf{Unsafe Native C++ Monolithic:} A manually integrated decoder written in C++ and statically linked directly into the host database binary. Compiled using GCC 11.4 with \texttt{-O3} optimization, loop unrolling, and vectorization enabled, this configuration omits all bounds checking and represents the absolute theoretical upper limit for processing throughput. 
-(3) \textbf{WebAssembly Sandbox:} Representing the state-of-the-art dynamic isolation paradigm, this baseline mirrors the AnyBlox architecture \cite{gienieczko2025anyblox}. It executes decoder logic compiled to WebAssembly bytecode within a strictly isolated Wasmtime runtime, enforcing hardware-backed dynamic memory bounds-checking on every array access. 
-(4) \textbf{eBPF-based Verification:} A traditional static verification baseline modeled after recent data-processing research \cite{hedam2023delilah}. This configuration utilizes the standard Linux eBPF verifier to analyze the decoder control-flow graph prior to execution; however, it frequently forces the compiler to retain runtime bounds checks when the traditional verifier fails to definitively prove safety constraints across complex, stateful decompression loops.
+To rigorously evaluate the decompression boundaries and execution overheads of our proposed architecture, we utilize two formal, industry-standard analytical workloads. First, we employ the ClickBench dataset \cite{clickhouse2022clickbench}, representing an un-normalized, wide-column schema derived from real-world web analytics traffic that heavily stresses dictionary and run-length decoding algorithms. Second, we utilize the TPC-H decision support benchmark at Scale Factor 100 ($\approx 100\text{ GB}$ of raw data). For TPC-H, we focus specifically on sequential scans over the highly dense \texttt{lineitem} table to assess silicon-level ingestion limits under complex, multi-staged bit-packing and dictionary decompression scenarios \cite{kuschewski2023btrblocks}.
 
+Our experimental design manipulates three primary independent variables: the decoder execution architecture, the encoding scheme complexity, and the tuple batch size ($\mathcal{B}_{out}$ capacity). The focal variable is the execution architecture, which we evaluate across four tightly controlled baseline configurations to cleanly separate the micro-architectural costs of dynamic isolation, static verification, and raw execution:
 
+(1) \textbf{SPNED (Proposed):} Our Static-Proof Native Execution of Decoders model, which lowers a restricted Domain-Specific Language (DSL) into a DAG-constrained intermediate representation, mathematically verifies memory safety via sub-millisecond interval abstract interpretation, and subsequently JIT-compiles the payload into unrestricted native machine code.
 
+(2) \textbf{Unsafe Native C++ Monolithic:} A manually integrated decoder written in C++ and statically linked directly into the host database binary. Compiled using GCC 11.4 with \texttt{-O3} optimization, aggressive loop unrolling, and AVX-512 auto-vectorization enabled, this configuration mathematically omits all bounds checking and represents the absolute physical hardware ceiling for processing throughput.
 
+(3) \textbf{WebAssembly Sandbox (AnyBlox-style):} Representing the state-of-the-art dynamic isolation paradigm, this baseline mirrors the AnyBlox architecture \cite{gienieczko2025anyblox}. It executes decoder logic compiled to WebAssembly bytecode within a strictly isolated Wasmtime runtime, enforcing hardware-backed dynamic memory bounds-checking and enduring pipeline-serializing context switches ($\approx \SI{3.24}{ns}$ overhead) on every execution boundary.
 
-
-
-
-
-
-
-
-
-
+(4) \textbf{eBPF-based Verification:} A traditional static verification baseline modeled after recent data-processing research \cite{hedam2023delilah}. This configuration utilizes a bounded verifier to analyze the decoder control-flow graph prior to execution; however, due to heuristic state-space explosion on complex loops, it is frequently forced to inject fallback runtime scalar bounds checks, inadvertently thwarting AVX-512 vectorization and out-of-order execution efficiency \cite{sun2024finding}.
 
 \subsection{Experiment 1: Absolute Throughput Bound Analysis on Physical Hardware}
 
