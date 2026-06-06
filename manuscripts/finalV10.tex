@@ -460,7 +460,7 @@ To comprehensively dismantle the opacity inherent in traditional dynamic isolati
 
 To evaluate the primary falsifiability condition—specifically, whether the proposed SPNED architecture can effectively match or exceed native query throughput by eliding safety checks—we orchestrated a rigorous physical performance analysis utilizing both sequential and selective table scans on an 80-core evaluation server. The experimental workload focused on the decompression of the standard TPC-H \texttt{lineitem} table (Scale Factor 10), specifically targeting a highly compressed string column encoded via Run-End Encoding (REE) combined with dictionary compression, a ubiquitous baseline for modern analytical data formats \cite{boncz2020fsst}. 
 
-We manipulated the execution architecture to form four physically isolated comparative environments: Native C++ Monolithic (compiled with \texttt{-O3} to establish a traditional single-translation-unit baseline), SPNED (our proposed interval-verified, dynamically loaded execution devoid of bounds checks), WebAssembly Sandbox (simulating the dynamic linear memory isolation overhead intrinsic to frameworks like AnyBlox \cite{gienieczko2025anyblox}), and an eBPF-based traditional verifier using the \texttt{uBPF} JIT engine \cite{hedam2023delilah}. For the selective scan phase, we injected a standardized $10\%$ selectivity predicate directly into the decoding loop to quantify branching penalties and SIMD disruption under statically verified conditions.
+We manipulated the execution architecture to form four physically isolated comparative environments: Native C++ Monolithic (compiled with \texttt{-O3} to establish a traditional single-translation-unit baseline), SPNED (our proposed interval-verified, dynamically loaded execution devoid of bounds checks), Software Fault Isolation (SFI) Sandbox (utilizing physical POSIX \texttt{mmap} and \texttt{PROT\_NONE} hardware guard pages to precisely mirror the underlying MMU linear memory isolation intrinsic to WebAssembly runtimes \cite{gienieczko2025anyblox}), and an eBPF-based traditional verifier using the \texttt{uBPF} JIT engine \cite{hedam2023delilah}. For the selective scan phase, we injected a standardized $10\%$ selectivity predicate directly into the decoding loop to quantify branching penalties and SIMD disruption under statically verified conditions.
 
 \begin{figure}[htbp]
     \centering
@@ -489,10 +489,10 @@ We manipulated the execution architecture to form four physically isolated compa
         \addlegendentry{SPNED (Ours, Verified JIT)}
         
         \addplot[fill=red!60!black, draw=black] coordinates {(Sequential (100\%), 1196) (Selective (10\%), 5129)};
-        \addlegendentry{Wasm Sandbox}
+        \addlegendentry{SFI Sandbox (Wasm-style)}
         
         \addplot[fill=orange!70!white, draw=black] coordinates {(Sequential (100\%), 589) (Selective (10\%), 3995)};
-        \addlegendentry{eBPF JIT}
+        \addlegendentry{eBPF-style Barriers}
         
         \end{axis}
     \end{tikzpicture}
