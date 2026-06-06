@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# SPNED Artifact Evaluation Master Execution Script
+# SPNED Artifact Evaluation Master Execution Script (Full Suite)
 # ==============================================================================
 
 # 定义颜色输出以增强控制台可读性
@@ -23,10 +23,23 @@ echo -e "[+] Global environment sanitized (Conda bypassed)."
 echo ""
 
 # ---------------------------------------------------------
+# 执行 Experiment 1: End-to-End Macro Benchmark (端到端宏观吞吐量)
+# ---------------------------------------------------------
+if [ -f "./run_exp1.sh" ]; then
+    echo -e "${YELLOW}>>> [1/4] Running Experiment 1 (End-to-End Macro Benchmark)...${NC}"
+    bash ./run_exp1.sh
+    echo ""
+else
+    echo -e "[-] Warning: run_exp1.sh not found. Skipping Experiment 1."
+    echo -e "    (Note: Exp 1 may require the full DB engine and ClickBench dataset)."
+    echo ""
+fi
+
+# ---------------------------------------------------------
 # 执行 Experiment 3: Context Switch Latency (微观上下文切换延迟)
 # ---------------------------------------------------------
 if [ -f "./run_exp3.sh" ]; then
-    echo -e "${YELLOW}>>> [1/3] Running Experiment 3 (Context Switch Latency)...${NC}"
+    echo -e "${YELLOW}>>> [2/4] Running Experiment 3 (Context Switch Latency)...${NC}"
     bash ./run_exp3.sh
     echo ""
 else
@@ -37,7 +50,7 @@ fi
 # 执行 Experiment 4: NUMA Scalability (多核内存墙物理带宽)
 # ---------------------------------------------------------
 if [ -f "./run_exp4.sh" ]; then
-    echo -e "${YELLOW}>>> [2/3] Running Experiment 4 (NUMA / DRAM Saturation)...${NC}"
+    echo -e "${YELLOW}>>> [3/4] Running Experiment 4 (NUMA / DRAM Saturation)...${NC}"
     bash ./run_exp4.sh
     echo ""
 else
@@ -48,7 +61,7 @@ fi
 # 执行 Experiment 2: Transparent Verifier & Naked JIT (真正的形式化验证器)
 # ---------------------------------------------------------
 if [ -f "./run_transparent_eval.sh" ]; then
-    echo -e "${YELLOW}>>> [3/3] Running Experiment 2 (Transparent Verifier & mmap JIT)...${NC}"
+    echo -e "${YELLOW}>>> [4/4] Running Experiment 2 (Transparent Verifier & mmap JIT)...${NC}"
     bash ./run_transparent_eval.sh
     echo ""
 else
