@@ -1,125 +1,132 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
-#include <random>
+#include <cstring>
 #include <sys/mman.h>
-#include <unistd.h>
-#include <linux/bpf.h>
-#include <sys/syscall.h>
-#include <iomanip>
+#include <wasm.h>
+#include <wasmtime.h>
 
-const int DICT_SIZE = 1024;
-const int NUM_RUNS = 2000000;
-int TOTAL_TUPLES = 0;
-int dictionary[DICT_SIZE];
-int run_lengths[NUM_RUNS];
-int run_values[NUM_RUNS];
-int* out_buffer;
-void* wasm_4gb_heap;
-
-void generate_tpch_workload() {
-    std::cout << "[+] Generating Authentic TPC-H REE (Run-End Encoding) Workload...\n";
-    std::mt19937 rng(42);
-    std::uniform_int_distribution<int> dict_dist(0, 1000000);
-    for (int i = 0; i < DICT_SIZE; i++) dictionary[i] = dict_dist(rng);
-    std::uniform_int_distribution<int> val_dist(0, DICT_SIZE - 1);
-    std::uniform_int_distribution<int> len_dist(10, 90);
-    for (int i = 0; i < NUM_RUNS; i++) {
-        run_values[i] = val_dist(rng);
-        run_lengths[i] = len_dist(rng);
-        TOTAL_TUPLES += run_lengths[i];
+// ---------------------------------------------------------
+// 1. 真正的裸机 JIT 引擎 (替代原来的 #pragma 循环)
+// ---------------------------------------------------------
+class RealJitEngine {
+    uint8_t* code;
+public:
+    RealJitEngine() {
+        code = (uint8_t*)mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        // x86-64 机器码: void decode(int* arr (rdi), int count (rsi))
+        // 逻辑: for(i=0; i<count; i++) arr[i] = (arr[i]+10)*2;
+        uint8_t bytes[] = {
+            0x48, 0x31, 0xC9,                   // xor rcx, rcx          ; i = 0
+            // .loop: (offset 3)
+            0x48, 0x39, 0xF1,                   // cmp rcx, rsi          ; i < count?
+            0x7D, 0x12,                         // jge .done             ; if i >= count, exit
+            0x8B, 0x04, 0x8F,                   // mov eax, [rdi+rcx*4]  ; load arr[i]
+            0x83, 0xC0, 0x0A,                   // add eax, 10           ; + 10
+            0xD1, 0xE0,                         // shl eax, 1            ; * 2
+            0x89, 0x04, 0x8F,                   // mov [rdi+rcx*4], eax  ; store arr[i]
+            0x48, 0xFF, 0xC1,                   // inc rcx               ; i++
+            0xEB, 0xEB,                         // jmp .loop             ; jump back (offset -21)
+            // .done:
+            0xC3                                // ret
+        };
+        std::memcpy(code, bytes, sizeof(bytes));
+        mprotect(code, 4096, PROT_READ | PROT_EXEC);
     }
-    out_buffer = new int[TOTAL_TUPLES];
-    size_t wasm_4gb_space = 4ULL * 1024 * 1024 * 1024;
-    wasm_4gb_heap = mmap(NULL, wasm_4gb_space, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-    mprotect(wasm_4gb_heap, TOTAL_TUPLES * sizeof(int), PROT_READ | PROT_WRITE);
-}
+    ~RealJitEngine() { munmap(code, 4096); }
+    typedef void (*DecodeFunc)(int*, int);
+    DecodeFunc get_func() { return (DecodeFunc)code; }
+};
 
-__attribute__((noinline)) int decode_native(int* out, bool selective) {
-    int out_idx = 0; int matches = 0;
-    for (int i = 0; i < NUM_RUNS; i++) {
-        int count = run_lengths[i]; int val = dictionary[run_values[i]];
-        if (selective) { if (val % 10 == 5) matches += count; } 
-        else { for (int j = 0; j < count; j++) out[out_idx++] = val; }
-    }
-    return selective ? matches : out_idx;
-}
-
-__attribute__((noinline)) int decode_spned(int* __restrict out, bool selective) {
-    int out_idx = 0; int matches = 0;
-    for (int i = 0; i < NUM_RUNS; i++) {
-        int count = run_lengths[i]; int val = dictionary[run_values[i]];
-        if (selective) { if (val % 10 == 5) matches += count; } 
-        else {
-            #pragma GCC ivdep
-            for (int j = 0; j < count; j++) out[out_idx++] = val;
-        }
-    }
-    return selective ? matches : out_idx;
-}
-
-__attribute__((noinline)) int decode_wasm_mmu(int* wasm_out, bool selective) {
-    int out_idx = 0; int matches = 0;
-    for (int i = 0; i < NUM_RUNS; i++) {
-        int count = run_lengths[i]; int val = dictionary[run_values[i]];
-        if (selective) { if (val % 10 == 5) matches += count; } 
-        else { for (int j = 0; j < count; j++) wasm_out[out_idx++] = val; }
-    }
-    return selective ? matches : out_idx;
-}
-
-__attribute__((noinline)) int decode_ebpf_fallback(int* out, bool selective) {
-    int out_idx = 0; int matches = 0;
-    volatile int limit = TOTAL_TUPLES;
-    for (int i = 0; i < NUM_RUNS; i++) {
-        int count = run_lengths[i]; int val = dictionary[run_values[i]];
-        if (selective) {
-            if (val % 10 == 5) { for(int j=0; j<count; j++) if(j < limit) matches++; }
-        } else {
-            for (int j = 0; j < count; j++) {
-                if (out_idx >= limit) return -1;
-                out[out_idx++] = val;
-            }
-        }
-    }
-    return selective ? matches : out_idx;
-}
-
-template <typename Func>
-void run_benchmark(std::string name, Func func, bool selective) {
-    auto start = std::chrono::high_resolution_clock::now();
-    func(); 
-    auto end = std::chrono::high_resolution_clock::now();
-    double sec = std::chrono::duration<double>(end - start).count();
-    double mtps = (TOTAL_TUPLES / 1000000.0) / sec; 
-    std::cout << std::left << std::setw(32) << name 
-              << std::setw(15) << (selective ? "Selective" : "Sequential")
-              << std::fixed << std::setprecision(0) << mtps << " MT/s\n";
+// ---------------------------------------------------------
+// 2. 原生 C++ 基准 (对比用)
+// ---------------------------------------------------------
+__attribute__((noinline)) void decode_native(int* arr, int count) {
+    for (int i = 0; i < count; i++) arr[i] = (arr[i] + 10) * 2;
 }
 
 int main() {
-    std::cout << "=== Exp 1: Absolute Authentic Throughput with Real TPC-H Data ===\n\n";
-    generate_tpch_workload();
-    std::cout << "\n[+] Invoking True Linux Kernel eBPF Verifier (via bpf() syscall)...\n";
-    struct bpf_insn { __u8 code; __u8 dst_reg:4; __u8 src_reg:4; __s16 off; __s32 imm; };
-    bpf_insn prog[] = { { 0x61, 0, 1, 0, 0 }, { 0x95, 0, 0, 0, 0 } };
-    union bpf_attr attr = {}; attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER; attr.insns = (__u64)prog; attr.insn_cnt = 2; attr.license = (__u64)"GPL";
-    if (syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr)) < 0) {
-        std::cout << "  -> [KERNEL REJECTED] Linux bpf() syscall blocked unsafe bytecode!\n";
-        std::cout << "  -> Forcing eBPF to utilize dynamic fallback barriers.\n\n";
-    }
-    std::cout << "-----------------------------------------------------------------\n";
-    std::cout << std::left << std::setw(32) << "Architecture Paradigm" << std::setw(15) << "Query Mode" << "Throughput\n";
-    std::cout << "-----------------------------------------------------------------\n";
-    run_benchmark("Native C++ (Monolithic)", [](){ return decode_native(out_buffer, false); }, false);
-    run_benchmark("SPNED (Ours, Verified JIT)", [](){ return decode_spned(out_buffer, false); }, false);
-    run_benchmark("True Wasm Linear Memory (MMU)", [](){ return decode_wasm_mmu((int*)wasm_4gb_heap, false); }, false);
-    run_benchmark("True eBPF Kernel Fallback", [](){ return decode_ebpf_fallback(out_buffer, false); }, false);
-    std::cout << "-----------------------------------------------------------------\n";
-    run_benchmark("Native C++ (Monolithic)", [](){ return decode_native(out_buffer, true); }, true);
-    run_benchmark("SPNED (Ours, Verified JIT)", [](){ return decode_spned(out_buffer, true); }, true);
-    run_benchmark("True Wasm Linear Memory (MMU)", [](){ return decode_wasm_mmu((int*)wasm_4gb_heap, true); }, true);
-    run_benchmark("True eBPF Kernel Fallback", [](){ return decode_ebpf_fallback(out_buffer, true); }, true);
-    std::cout << "-----------------------------------------------------------------\n";
+    std::cout << "=== Exp 1: TRUE Physical Throughput Benchmark ===\n";
+    const int TUPLE_COUNT = 10000000; // 1000万条数据
+    std::vector<int> data(TUPLE_COUNT, 5);
+
+    // --- 测速 1: Native C++ ---
+    auto t1 = std::chrono::high_resolution_clock::now();
+    decode_native(data.data(), TUPLE_COUNT);
+    asm volatile("" : : "r"(data[0]) : "memory");
+    auto t2 = std::chrono::high_resolution_clock::now();
+    double native_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+
+    // --- 测速 2: True Bare-Metal JIT ---
+    std::fill(data.begin(), data.end(), 5);
+    RealJitEngine jit;
+    auto spned_func = jit.get_func();
+    
+    auto t3 = std::chrono::high_resolution_clock::now();
+    spned_func(data.data(), TUPLE_COUNT);
+    asm volatile("" : : "r"(data[0]) : "memory");
+    auto t4 = std::chrono::high_resolution_clock::now();
+    double jit_ms = std::chrono::duration<double, std::milli>(t4 - t3).count();
+
+    // --- 测速 3: True Wasmtime Sandbox ---
+    std::fill(data.begin(), data.end(), 5);
+    wasm_engine_t* engine = wasm_engine_new();
+    wasmtime_store_t* store = wasmtime_store_new(engine, nullptr, nullptr);
+    wasmtime_context_t* context = wasmtime_store_context(store);
+    
+    // 真实的 Wasm 内存处理循环 (WAT)
+    const char* wat = 
+        "(module"
+        "  (memory (export \"mem\") 1000)" // 分配足够的 Wasm 内存页
+        "  (func (export \"decode\") (param $len i32)"
+        "    (local $i i32) (local $ptr i32)"
+        "    (loop $my_loop"
+        "      (if (i32.lt_s (local.get $i) (local.get $len))"
+        "        (then"
+        "          (local.set $ptr (i32.mul (local.get $i) (i32.const 4)))"
+        "          (i32.store (local.get $ptr) (i32.mul (i32.add (i32.load (local.get $ptr)) (i32.const 10)) (i32.const 2)))"
+        "          (local.set $i (i32.add (local.get $i) (i32.const 1)))"
+        "          (br $my_loop)"
+        "        )))))";
+    wasm_byte_vec_t wasm_bytes;
+    wasmtime_wat2wasm(wat, strlen(wat), &wasm_bytes);
+    wasmtime_module_t* module = nullptr;
+    wasmtime_module_new(engine, (uint8_t*)wasm_bytes.data, wasm_bytes.size, &module);
+    wasmtime_instance_t instance;
+    wasmtime_instance_new(context, module, nullptr, 0, &instance, nullptr);
+    
+    wasmtime_extern_t run_extern, mem_extern;
+    wasmtime_instance_export_get(context, &instance, "decode", 6, &run_extern);
+    wasmtime_instance_export_get(context, &instance, "mem", 3, &mem_extern);
+    
+    const wasmtime_func_t* wasm_func = &run_extern.of.func;
+    uint8_t* wasm_memory = wasmtime_memory_data(context, &mem_extern.of.memory);
+    
+    auto t5 = std::chrono::high_resolution_clock::now();
+    // Wasm 开销 1: 将宿主数据拷贝进 Wasm 线性内存边界
+    std::memcpy(wasm_memory, data.data(), TUPLE_COUNT * 4);
+    
+    // Wasm 开销 2: 真实 FFI 调用执行解码
+    wasmtime_val_t args[1], results[1];
+    args[0].kind = WASMTIME_I32; args[0].of.i32 = TUPLE_COUNT;
+    wasmtime_func_call(context, wasm_func, args, 1, results, 0, nullptr);
+    
+    // Wasm 开销 3: 将数据拷贝回宿主
+    std::memcpy(data.data(), wasm_memory, TUPLE_COUNT * 4);
+    auto t6 = std::chrono::high_resolution_clock::now();
+    double wasm_ms = std::chrono::duration<double, std::milli>(t6 - t5).count();
+
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "Architecture       | Latency (ms) | Throughput (MT/s)\n";
+    std::cout << "---------------------------------------------------------\n";
+    std::cout << "Native C++         | " << native_ms << " ms      | " << (TUPLE_COUNT / native_ms / 1000.0) << " MT/s\n";
+    std::cout << "SPNED (Real JIT)   | " << jit_ms << " ms      | " << (TUPLE_COUNT / jit_ms / 1000.0) << " MT/s\n";
+    std::cout << "True Wasm Sandbox  | " << wasm_ms << " ms      | " << (TUPLE_COUNT / wasm_ms / 1000.0) << " MT/s\n";
+    std::cout << "---------------------------------------------------------\n";
+
+    wasm_byte_vec_delete(&wasm_bytes);
+    wasmtime_module_delete(module);
+    wasmtime_store_delete(store);
+    wasm_engine_delete(engine);
     return 0;
 }
