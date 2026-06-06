@@ -1,0 +1,164 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{boncz2020fsst}
+\citation{kuschewski2023btrblocks}
+\citation{duckdb2025duckdb}
+\citation{haas2012builtin}
+\citation{saur2022containerized}
+\citation{gienieczko2025anyblox}
+\citation{watt2018mechanising}
+\citation{hedam2023delilah}
+\citation{vishwanathan2023verifying}
+\citation{sun2024finding}
+\citation{anneser2023autosteer}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\citation{gienieczko2025anyblox}
+\citation{haas2012builtin}
+\citation{apache2018parquet}
+\citation{duckdb2025duckdb}
+\citation{paul2021cve}
+\citation{redhat2017cve}
+\citation{haas2012builtin}
+\citation{vishwanathan2023verifying}
+\citation{boncz2020fsst}
+\citation{apache2016orc}
+\citation{apache2023arrow}
+\citation{lamb2024apache}
+\citation{pedreira2023composable}
+\citation{apache2025arrowflight}
+\citation{gienieczko2025anyblox}
+\citation{sichert2024efficient}
+\citation{hedam2023delilah}
+\citation{gienieczko2025anyblox}
+\citation{gienieczko2025anyblox}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Architectures Based on Unrestricted Memory Coupling}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Mediated Shared Memory Integration Paradigms}{2}{subsection.2.2}\protected@file@percent }
+\citation{gienieczko2025anyblox}
+\citation{gienieczko2025anyblox}
+\citation{hedam2023delilah}
+\citation{sichert2024efficient}
+\citation{lamb2024apache}
+\citation{melnik2011dremel}
+\citation{snowflake2025external}
+\citation{armenatzoglou2022amazon}
+\citation{saur2022containerized}
+\citation{shillaker2020faasm}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces The Mediated Shared Memory architecture utilized by systems like AnyBlox \cite  {gienieczko2025anyblox}, illustrating the isolation boundary and the requisite data translation step.}}{3}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:mediated_memory}{{1}{3}{The Mediated Shared Memory architecture utilized by systems like AnyBlox \cite {gienieczko2025anyblox}, illustrating the isolation boundary and the requisite data translation step}{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {II-B}1}Critical Shortcomings and Alignment with Research Gaps}{3}{subsubsection.2.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Serialized Message Passing and Service-Oriented Integration}{3}{subsection.2.3}\protected@file@percent }
+\citation{haas2017bringing}
+\citation{watt2018mechanising}
+\citation{bytecode2019wasmtime}
+\citation{bytecode2016cranelift}
+\citation{borkmann2023bpf}
+\citation{sun2024finding}
+\citation{bytecode2019wasmtime}
+\citation{sun2024finding}
+\citation{leis2014morsel}
+\citation{neumann2020umbra}
+\citation{raasveldt2019duckdb}
+\citation{boncz2020fsst}
+\citation{kuschewski2023btrblocks}
+\citation{kuschewski2023btrblocks}
+\citation{leis2014morsel}
+\citation{neumann2020umbra}
+\citation{anneser2023autosteer}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-D}}Foundational Technologies for Decoder Delivery and Isolation}{4}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-E}}Data Format Evolution and Computational Optimization}{4}{subsection.2.5}\protected@file@percent }
+\citation{boncz2020fsst}
+\citation{anneser2023autosteer}
+\citation{kuschewski2023btrblocks}
+\citation{raasveldt2019duckdb}
+\citation{gienieczko2025anyblox}
+\citation{bytecode2019wasmtime}
+\citation{saur2022containerized}
+\citation{duckdb2025duckdb}
+\citation{hedam2023delilah}
+\citation{borkmann2023bpf}
+\citation{haas2012builtin}
+\citation{gienieczko2025anyblox}
+\citation{watt2018mechanising}
+\citation{hedam2023delilah}
+\citation{borkmann2023bpf}
+\@writefile{toc}{\contentsline {section}{\numberline {III}The Proposed Method}{5}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Overview of Static-Proof Native Execution of Decoders (SPNED)}{5}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Framework Components: The Decoder DSL and IR Builder}{5}{subsection.3.2}\protected@file@percent }
+\citation{vishwanathan2023verifying}
+\citation{gienieczko2025anyblox}
+\citation{watt2018mechanising}
+\citation{hedam2023delilah}
+\citation{borkmann2023bpf}
+\citation{anneser2023autosteer}
+\citation{kuschewski2023btrblocks}
+\citation{watt2018mechanising}
+\citation{leis2014morsel}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The architectural pipeline of the SPNED Framework components. The strictly constrained $\mathcal  {L}_{DSL}$ is parsed and lowered into a specialized $G_{IR}$ that explicitly preserves loop invariants and memory boundaries, perfectly framing the logic for interval-based verification.}}{6}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:spned_components}{{2}{6}{The architectural pipeline of the SPNED Framework components. The strictly constrained $\mathcal {L}_{DSL}$ is parsed and lowered into a specialized $G_{IR}$ that explicitly preserves loop invariants and memory boundaries, perfectly framing the logic for interval-based verification}{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Learning Mechanism: Abstract State Inference for Static Verification}{6}{subsection.3.3}\protected@file@percent }
+\@writefile{loe}{\contentsline {definition}{\ifthmt@listswap Definition~III.1\else \numberline {III.1}Definition\fi }{6}{definition.1}\protected@file@percent }
+\citation{gienieczko2025anyblox}
+\citation{watt2018mechanising}
+\citation{lattner2004llvm}
+\citation{leis2014morsel}
+\citation{neumann2020umbra}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Interval-Based Static Verification}}{7}{algorithm.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Algorithm: Unrestricted JIT Compilation and Zero-Copy Integration}{7}{subsection.3.4}\protected@file@percent }
+\citation{clickhouse2022clickbench}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces SPNED Native Compilation and Zero-Copy Execution}}{8}{algorithm.2}\protected@file@percent }
+\newlabel{alg:spned_jit}{{2}{8}{SPNED Native Compilation and Zero-Copy Execution}{algorithm.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Memory integration architecture of SPNED. By utilizing a register-passed pointer ABI within the shared host address space, SPNED achieves immediate zero-copy data transfer devoid of sandbox mediation.}}{8}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:spned_memory_architecture}{{3}{8}{Memory integration architecture of SPNED. By utilizing a register-passed pointer ABI within the shared host address space, SPNED achieves immediate zero-copy data transfer devoid of sandbox mediation}{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Experiments}{8}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Experimental Settings}{8}{subsection.4.1}\protected@file@percent }
+\citation{gienieczko2025anyblox}
+\citation{hedam2023delilah}
+\citation{boncz2020fsst}
+\citation{gienieczko2025anyblox}
+\citation{hedam2023delilah}
+\citation{gienieczko2025anyblox}
+\citation{hedam2023delilah}
+\citation{kuschewski2023btrblocks}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Experiment 1: Absolute Throughput Bound Analysis on Physical Hardware}{9}{subsection.4.2}\protected@file@percent }
+\citation{boncz2020fsst}
+\citation{kuschewski2023btrblocks}
+\citation{neumann2020umbra}
+\citation{gienieczko2025anyblox}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Physical data ingestion throughput in Millions of Tuples per second (MT/s). SPNED establishes the true hardware SIMD ceiling. By dynamically loading verified machine code across translation units, SPNED bypasses the strict compiler pointer-aliasing constraints that limit traditional monolithic Native C++ architectures.}}{10}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:exp1_throughput}{{4}{10}{Physical data ingestion throughput in Millions of Tuples per second (MT/s). SPNED establishes the true hardware SIMD ceiling. By dynamically loading verified machine code across translation units, SPNED bypasses the strict compiler pointer-aliasing constraints that limit traditional monolithic Native C++ architectures}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Experiment 2: False Rejection Rate and Verifier Precision on Physical Hardware}{10}{subsection.4.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Measured Physical Latency and Emergent Semantic FRR across Encodings}}{10}{table.caption.5}\protected@file@percent }
+\newlabel{tab:verifier_precision}{{I}{10}{Measured Physical Latency and Emergent Semantic FRR across Encodings}{table.caption.5}{}}
+\citation{leis2014morsel}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Physical verification latency as a function of CFG complexity. The interval-based abstract interpretation maintains strict linear scaling $\mathcal  {O}(|V| + |E|)$. Empirical measurements confirm that even for dense, multi-staged decoders, the planning overhead peaks at just $0.57\text  { ms}$—operating safely within a sub-millisecond envelope and rendering it virtually cost-free for real-time compilation.}}{11}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:verifier_latency}{{5}{11}{Physical verification latency as a function of CFG complexity. The interval-based abstract interpretation maintains strict linear scaling $\mathcal {O}(|V| + |E|)$. Empirical measurements confirm that even for dense, multi-staged decoders, the planning overhead peaks at just $0.57\text { ms}$—operating safely within a sub-millisecond envelope and rendering it virtually cost-free for real-time compilation}{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Experiment 3: Tuple Batch Size Overhead Profiling on Physical Hardware}{11}{subsection.4.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Amortized latency per tuple as a function of batch size, measured with micro-architectural hardware probes. The curves highlight a severe transition penalty for Wasm at micro-batches, which logarithmically decays into a highly efficient, L1/L2-driven execution plateau.}}{11}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:batch_overhead}{{6}{11}{Amortized latency per tuple as a function of batch size, measured with micro-architectural hardware probes. The curves highlight a severe transition penalty for Wasm at micro-batches, which logarithmically decays into a highly efficient, L1/L2-driven execution plateau}{figure.caption.7}{}}
+\citation{gienieczko2025anyblox}
+\citation{leis2014morsel}
+\citation{gienieczko2025anyblox}
+\citation{watt2018mechanising}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Experiment 4: Multi-Core Scalability and Lock Contention on Physical Hardware}{12}{subsection.4.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Aggregated throughput under strict hardware thread pinning. SPNED exhibits an extraordinary throughput peak at 16 threads ($\approx \SI {59}{GB/s}$), perfectly saturating a single NUMA node's memory controllers. In contrast, the WebAssembly sandbox is constrained by intra-node atomic lock contention and fails to achieve this theoretical hardware peak.}}{12}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:scalability}{{7}{12}{Aggregated throughput under strict hardware thread pinning. SPNED exhibits an extraordinary throughput peak at 16 threads ($\approx \SI {59}{GB/s}$), perfectly saturating a single NUMA node's memory controllers. In contrast, the WebAssembly sandbox is constrained by intra-node atomic lock contention and fails to achieve this theoretical hardware peak}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-F}}Limitations}{12}{subsection.4.6}\protected@file@percent }
+\citation{haas2017bringing}
+\citation{ecma1997json}
+\citation{anneser2023autosteer}
+\citation{gienieczko2025anyblox}
+\citation{duckdb2025duckdb}
+\citation{vishwanathan2023verifying}
+\citation{ecma1997json}
+\citation{anneser2023autosteer}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Conclusions}{13}{section.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces SPNED structurally resolves the Data Format Integration Trilemma by mapping mathematically restricted abstractions directly to unrestricted native hardware bounds.}}{13}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:spned_trilemma}{{8}{13}{SPNED structurally resolves the Data Format Integration Trilemma by mapping mathematically restricted abstractions directly to unrestricted native hardware bounds}{figure.caption.9}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {V-}1}Future Research Directions}{13}{subsubsection.5.0.1}\protected@file@percent }
+\bibstyle{unsrt}
+\bibdata{references}
+\gdef \@abspage@last{14}
