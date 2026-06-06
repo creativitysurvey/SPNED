@@ -37,7 +37,7 @@ int main() {
     // NUMA First-touch 原则：串行预热分配
     for(size_t i=0; i<NUM_TUPLES; i++) global_data[i] = 1;
 
-    std::vector<int> thread_counts = {1, 8, 16, 64};
+    std::vector<int> thread_counts = {1, 4, 8, 16, 32, 64};
     for (int t : thread_counts) {
         if (t > std::thread::hardware_concurrency()) continue;
         global_sum = 0;
