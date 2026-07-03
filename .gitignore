@@ -13,3 +13,4 @@ wasmtime-c-api/
 ubpf/
 *.bin
 *.synctex.gz
+manuscripts/
