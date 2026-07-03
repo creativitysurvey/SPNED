@@ -15,7 +15,7 @@ if [ ! -d "wasmtime-c-api" ]; then
 fi
 
 echo -e "\n>>> 1. Compiling & Executing Exp 1: TRUE Throughput Benchmark (8 Metrics)..."
-g++ -O3 -std=c++14 measure_exp1_ultimate.cpp -I./wasmtime-c-api/include -L./wasmtime-c-api/lib -lwasmtime -Wl,-rpath,$(pwd)/wasmtime-c-api/lib -o measure_exp1_bin
+g++ -O3 -std=c++14 measure_exp1_ultimate.cpp -I./wasmtime-c-api/include -L./wasmtime-c-api/lib -lwasmtime -Wl,-rpath,$(pwd)/wasmtime-c-api/lib -I./ubpf/vm/inc /home/liwei/myshare/tmp008/SPNED/ubpf/build/lib/libubpf.a -o measure_exp1_bin -lm -lpthread -ldl -lrt
 ./measure_exp1_bin
 
 echo -e "\n>>> 2. Compiling & Executing Exp 2: SPNED Verifier Precision & Latency (12 Metrics)..."
