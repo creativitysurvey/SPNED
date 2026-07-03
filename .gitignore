@@ -10,3 +10,6 @@ measure_exp1_kernel_real
 decoder.wasm
 bpf_decoder.o
 wasmtime-c-api/
+ubpf/
+*.bin
+*.synctex.gz
