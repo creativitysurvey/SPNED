@@ -1,64 +1,72 @@
-cd /home/liwei/myshare/spned-experiments
+# SPNED: Static-Proof Native Execution of Decoders - Evaluation Artifact
 
-echo ">>> Updating README.md to match the v7.0-AE-AST-Driven architecture..."
+## 1. 目的与作用
+本代码仓库包含了 SPNED 架构的实验评估（Artifact Evaluation）源码与微基准测试（Micro-benchmarks）套件。其主要作用是测量和对比数据解码与过滤任务在不同执行架构下的物理吞吐量、验证延迟及上下文切换开销。
 
-cat << 'EOF' > README.md
-# Artifact Evaluation: SPNED Architecture (v7.0-AE-AST-Driven)
+测试用例对比了以下三种执行环境：
+1. **SPNED**：基于抽象语法树（AST）与区间分析（Interval Analysis）的动态 x86-64 机器码生成器。
+2. **WebAssembly (Wasm)**：基于 `wasmtime-c-api` 的线性内存沙盒执行环境。
+3. **eBPF**：基于 IOVisor `uBPF` 的用户态虚拟机与 JIT 执行环境。
 
-> **Important Note to AE Reviewers:** 
-> In response to rigorous expert scrutiny, this `v7.0-AE-AST-Driven` artifact completely eliminates all prior "hardcoded array" PoCs. It now features a **100% authentic AST-driven dynamic x86-64 code emitter** and a mathematical Interval Verifier based on Abstract Interpretation. All runtime measurements directly reflect raw hardware physics across true Wasmtime, IOVisor uBPF, and Naked JIT execution boundaries.
+## 2. 系统与环境要求
+*   **操作系统**：Linux (必须为 x86_64 架构，以支持本实验的底层机器码发射机制)。
+*   **编译器**：支持 C++14 标准的 GCC/G++；用于交叉编译 eBPF 字节码的 Clang/LLVM 工具链。
+*   **依赖库**：
+    *   `wasmtime-c-api` (Wasm 运行时)
+    *   `ubpf` (eBPF 用户态虚拟机)
 
-This repository isolates and physically measures the absolute hardware limits of the **SPNED (Static-Proof Native Execution of Decoders)** architecture against true eBPF and WebAssembly standard ISA baselines.
-
----
-
-## 🚀 Quick Start (One-Click Ultimate Execution)
-
-We have unified the entire evaluation suite. A single master script will compile the bare-metal engines (bypassing environmental linker conflicts), orchestrate the LLVM toolchains, and execute all physical baselines:
+## 3. 下载与安装
+请通过 Git 克隆本仓库及其依赖组件到本地环境：
 
 ```bash
-# Grant execution permission
+git clone [https://github.com/creativitysurvey/SPNED.git](https://github.com/creativitysurvey/SPNED.git)
+cd SPNED
+```
+*(注：请确保 `wasmtime-c-api` 和 `ubpf` 已正确放置在项目根目录下，或提前编译好相应的静态/动态链接库。)*
+
+## 4. 编译与配置
+项目中包含自动化构建脚本。在编译前，建议确保系统环境变量中没有与其冲突的第三方链接器（如 Conda 环境自带的 `ld`）。
+
+**方法一：使用自动化脚本编译**
+```bash
+# 赋予脚本执行权限
 chmod +x run_all_experiments.sh
 
-# Execute the master verification suite
+# 运行自动化脚本（包含编译与环境检查步骤）
 ./run_all_experiments.sh
 ```
 
----
+**方法二：手动编译核心基准测试 (Exp 1)**
+如需手动编译主测试文件，请指定正确的头文件与库文件路径：
+```bash
+# 获取 uBPF 的配置与库文件路径
+UBPF_CONF_DIR=$(dirname $(find $(pwd)/ubpf -name "ubpf_config.h" | head -n 1))
+UBPF_LIB=$(find $(pwd)/ubpf/build -name "libubpf.a" | head -n 1)
 
-## 📁 File Manifest & Hardcore Physics Experiments
+# 使用 g++ 编译
+g++ -O3 -std=c++14 measure_exp1_ultimate.cpp \
+    -I./wasmtime-c-api/include -L./wasmtime-c-api/lib -lwasmtime -Wl,-rpath,$(pwd)/wasmtime-c-api/lib \
+    -I./ubpf/vm/inc -I$UBPF_CONF_DIR $UBPF_LIB -o measure_exp1_bin -lm -lpthread -ldl -lrt
+```
 
-### 🧪 Experiment 1: Absolute Authentic Throughput & ISA-Level Baselines
-* **`measure_exp1_ultimate.cpp`**: The ultimate physical benchmark. It dynamically constructs an Abstract Syntax Tree (AST), performs interval bounding, and physically emits x86-64 machine code opcode-by-opcode into `PROT_EXEC` memory at runtime. It contrasts this zero-copy execution against a true `wasmtime` engine (Linear Memory isolation) and an **IOVisor uBPF Virtual Machine** (JIT bounds-checking penalty).
+## 5. 运行方式
+编译完成后，可在终端直接执行生成的二进制文件以查看测试结果。
 
-### 🔬 Experiment 2: Abstract Interpretation & Verifier Latency
-* **`true_ast_jit.cpp` & `measure_exp2_verifier.cpp`**: Proves the mathematical foundation of SPNED. It traverses data dependency graphs using an $\mathcal{O}(|V|+|E|)$ Worklist algorithm to calculate absolute physical bounds (Interval Analysis) *before* JIT emission. This guarantees memory safety without inserting any CPU pipeline-stalling bounds checks.
+**基准测试 1：绝对吞吐量对比 (Throughput)**
+测试 SPNED、Wasm 与 eBPF 在顺序访问 (Sequential) 与条件过滤 (Selective) 模式下的数据处理吞吐率（单位：MT/s）。
+```bash
+./measure_exp1_bin
+```
 
-### ⏱️ Experiment 3: True Wasm FFI Context Switch Probe
-* **`exp3_real_wasm_ffi.cpp`**: Measures the micro-architectural boundary penalty. It dynamically scales payload sizes from 0 Bytes to 256 KB, capturing the exponential hardware cost of `memcpy` across the MMU Linear Memory boundary for Wasm, compared to SPNED's zero-copy ($O(1)$) in-place execution.
+**基准测试 2：AST 区间验证器功能测试 (Verifier)**
+测试基于 AST 的区间推导逻辑及动态机器码发射的正确性。
+```bash
+g++ -O3 -std=c++14 true_ast_jit.cpp -o true_ast_jit_bin
+./true_ast_jit_bin
+```
 
-### 🌋 Experiment 4: NUMA-Aware Concurrent Scalability
-* **`exp4_numa_scaling.cpp`**: Stresses the architecture across a multi-core system. It enforces strict hardware thread pinning (`pthread_setaffinity_np`) and isolates independent Wasmtime `store` contexts per thread. It physically measures the QPI/UPI cross-socket NUMA drop-off, proving SPNED's lock-free parallel scaling up to ~26 GB/s.
-
----
-
-## 🛡️ Methodology & FAQ for Reviewers
-
-**Q1: Are the JIT payloads just hardcoded byte arrays?**
-**A: Absolutely Zero.** The SPNED JIT engine traverses a live Abstract Syntax Tree at runtime and dynamically splices hexadecimal opcodes (`0x48`, `0x05`, etc.) based on data flow logic. Altering the AST mathematically and physically alters the generated machine code inside the `mmap` allocation.
-
-**Q2: How do you capture the "eBPF Penalty" authentically?**
-**A:** We use the industry-standard IOVisor `uBPF` user-space execution engine. We cross-compile pure C code (with mandatory `if (i >= bounds) break;` safeguards) into `BPF_ALU64` bytecode. The uBPF JIT compiler emits the x86-64 code. The measured throughput drops are the actual physical costs of executing these safety `cmp` and `jmp` instructions in the CPU pipeline.
-
-**Q3: Why is SPNED's throughput ~720 MT/s, lower than a native C++ baseline?**
-**A:** Our native C++ baseline (~2400 MT/s) is heavily optimized by GCC `-O3`. The SPNED throughput (~721 MT/s) reflects a pure, unoptimized AST-driven runtime emission (no register allocation, no peephole optimization). This authentic drop proves the dynamic nature of our JIT. Even without these standard compiler optimizations, SPNED still vastly outperforms the Wasm SFI sandbox (~205 MT/s) by entirely bypassing linear memory `memcpy` overheads.
-EOF
-
-echo ">>> Committing and pushing the final README.md to GitHub..."
-git add README.md
-git commit -m "docs(eval): update README to reflect v7.0 AST-driven JIT architecture and objective evaluation standards"
-git push origin main
-
-echo "========================================================"
-echo " README UPDATED. THE ARTIFACT IS OFFICIALLY SEALED."
-echo "========================================================"
+## 6. 核心文件结构说明
+*   `measure_exp1_ultimate.cpp`：主基准测试源码，包含了多架构吞吐量对比逻辑。
+*   `true_ast_jit.cpp`：微型 AST 驱动 JIT 引擎与静态区间验证器的独立实现。
+*   `ebpf_payload.c`：用于编译生成 `BPF_ALU64` 字节码的 C 源码文件。
+*   `run_all_experiments.sh`：项目全局编译与执行的入口脚本。
