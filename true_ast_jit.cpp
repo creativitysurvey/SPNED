@@ -25,7 +25,7 @@ struct ASTNode {
 // ----------------------------------------------------------------------------
 // 2. 真实的验证器 (True Static Verifier based on Abstract Interpretation)
 // ----------------------------------------------------------------------------
-// 审稿人批评之前的验证器是“随机图模拟”，现在我们对真实的 AST 进行递归区间推导
+// Perform interval analysis on the AST to statically prove memory safety bounds
 bool verify_ast_bounds(ASTNode* node, int64_t global_min, int64_t global_max) {
     if (!node) return true;
 
@@ -65,7 +65,7 @@ bool verify_ast_bounds(ASTNode* node, int64_t global_min, int64_t global_max) {
 // ----------------------------------------------------------------------------
 // 3. 真实的机器码发射器 (True JIT Code Generator)
 // ----------------------------------------------------------------------------
-// 审稿人批评 JIT 是“硬编码数组”，现在我们基于 AST 动态生成机器码
+// Dynamically emit x86-64 machine code based on the AST structure
 class DynamicEmitter {
     std::vector<uint8_t> code;
 
@@ -116,7 +116,7 @@ int main() {
     std::cout << "=== True AST-Driven SPNED JIT Compiler ===\n";
 
     // 1. 构建真实的计算逻辑 AST:  (Var + 10) * 2
-    // 如果你修改这里的数字，最终生成的机器码会物理上发生改变！这彻底粉碎了“硬编码”的指控。
+    // Modifying these AST nodes physically alters the emitted machine code at runtime.
     ASTNode* root = new ASTNode(OpType::MUL, 0,
                         new ASTNode(OpType::ADD, 0,
                             new ASTNode(OpType::LOAD_VAR),

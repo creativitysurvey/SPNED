@@ -10,7 +10,7 @@
 #include "ubpf/vm/inc/ubpf.h"
 
 // ----------------------------------------------------------------------------
-// 1. 真实的抽象语法树 (AST) 与区间验证器 (Abstract Interpretation)
+// 1. True Abstract Syntax Tree (AST) and Interval Verifier (Abstract Interpretation)
 // ----------------------------------------------------------------------------
 enum class OpType { LOAD_VAR, CONST_VAL, ADD, MUL };
 
@@ -41,7 +41,7 @@ bool verify_ast_bounds(ASTNode* node, int64_t global_min, int64_t global_max) {
 }
 
 // ----------------------------------------------------------------------------
-// 2. 真实的动态 x86-64 机器码发射器 (完全由 AST 驱动)
+// 2. Dynamic x86-64 Machine Code Emitter (AST-Driven)
 // ----------------------------------------------------------------------------
 class DynamicX86JIT {
     uint8_t* code_seq;
@@ -86,7 +86,7 @@ public:
         
         emit8(0x8B); emit8(0x04); emit8(0x8F); // mov eax, dword [rdi + rcx*4]
         
-        // [核心突破] 在循环体内部，动态注入基于 AST 现场生成的机器码！
+        // Inject dynamically generated machine code into the loop body based on the AST.
         emit_ast_logic(ast_root); 
         
         emit8(0x89); emit8(0x04); emit8(0x8F); // mov dword [rdi + rcx*4], eax
